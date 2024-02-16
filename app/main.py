@@ -2,7 +2,6 @@ class Role:
     def __init__(self, name, description):
         self.name = name
         self.description = description
-        self.is_alive = True
 
     def __str__(self):
         return f"{self.name}: {self.description}"
@@ -13,19 +12,17 @@ class Role:
     def action_de_jour(self, tour, target_player):
         pass
 
-    def meurt(self):
-        self.is_alive = False
-
-    def resuscite(self):
-        self.is_alive = True
-
     def get_status(self):
         return f"{self.name} {'is' if self.is_alive else 'was'} {'alive' if self.is_alive else 'dead'}"
 
 
 class LoupGarou(Role):
     def __init__(self):
-        super().__init__("Loup-Garou", "Membre de la meute des Loups-Garous")
+        role_description = """Chaque nuit, ils dévorent un Villageois.
+Le jour, ils essaient de masquer leur identité nocturne pour échapper à la vindicte populaire.
+Ils sont 1, 2, 3 ou 4 suivant le nombre de joueurs et les variantes appliquées.
+(En aucun cas un Loup-Garou ne peut dévorer un Loup-Garou)."""
+        super().__init__("Loup-Garou", role_description)
 
     def action_de_nuit(self, tour):
         # Logique spécifique à l'action de nuit du Loup-Garou
@@ -52,10 +49,6 @@ class Chasseur(Role):
         role_description = "S’il se fait dévorer par les Loups-Garous ou exécuter malencontreusement par les joueurs, le Chasseur doit répliquer avant de rendre l’âme, en éliminant immédiatement n’importe quel autre joueur de son choix."
         super().__init__("Chasseur", role_description)
         self.was_alive = True
-
-    def meurt(self):
-        super().is_alive = False
-        self.was_alive = True
     
     def action_de_jour(self, tour, target_player):
         if self.was_alive == True:
@@ -68,6 +61,10 @@ class Cupidon(Role):
     def __init__(self):
         role_description = "En décochant ses célèbres flèches magiques, Cupidon a le pouvoir de rendre 2 personnes amoureuses à jamais. La première nuit (tour préliminaire), il désigne les 2 joueurs (ou joueuses ou 1 joueur et 1 joueuse) amoureux. Cupidon peut, s’il le veut, se désigner comme l’un des deux Amoureux."
         super().__init__("Cupidon", role_description)
+
+    def definir_les_amoureux(joueur_a, joueur_b):
+        joueur_a.amoureux(joueur_b)
+        joueur_b.amoureux(joueur_a)
 
     def action_de_nuit(self, tour, target_player):
         if tour == 1:
@@ -130,12 +127,21 @@ class Joueur:
         self.name = name
         self.role = role
         self.is_maire = False
+        self.est_amoureux = False
+        self.is_alive = True
 
     def __str__(self):
         return f"{self.name} - {str(self.role)}"
     
+    def meurt(self):
+        self.is_alive = False
+    
+    def ressuscite(self):
+        self.is_alive = True
+    
     def amoureux(self, joueur_amoureux):
         self.amoureux = joueur_amoureux
+        self.est_amoureux = True
         return(f"{self.name} est amoureux de {joueur_amoureux.name}")
 
 
@@ -156,6 +162,19 @@ class GestionnairePartie:
         self.players = players
         self.current_player_index = 0
         self.tour = 0
+        self.roles = {"Loup-Garou": [],
+                      "Villageois": [],
+                      "Voyante": [],
+                      "Chasseur": [],
+                      "Cupidon": [],
+                      "Sorciere": [],
+                      "Petite Fille": [],
+                      "Voleur": []}
+        
+        for joueur in players:
+            self.roles[joueur.role.name].append(joueur.name)
+        print(self.roles)
+
 
     def next_turn(self):
         current_player = self.players[self.current_player_index]
@@ -164,6 +183,34 @@ class GestionnairePartie:
         # Logique du tour, par exemple, appeler les méthodes perform_night_action ou perform_day_action
 
         self.current_player_index = (self.current_player_index + 1) % len(self.players)
+
+    def verifier_condition_de_victoire(self):
+        victoire = False
+        msg = []
+        # Verficiation si les loups-garous ont gagnée
+        if all([joueur.role.name=="Loup-Garou" for joueur in self.joueurs_vivants()]):
+            victoire = True
+            msg.append("Les Loups-Garous ont gagné !")
+        if not(any([joueur.role.name=="Loup-Garou" for joueur in self.joueurs_vivants()])):
+            victoire = True
+            msg.append("Les Villageois ont gagné !")
+        if all([joueur.est_amoureux for joueur in self.joueurs_vivants()]):
+            victoire = True
+            msg.append("Les amoureux ont gagné !")
+        
+        if msg == []:
+            msg.append("Pas de victoire pour l'instant...")
+
+        if victoire:
+            return (True, msg)
+        else:
+            return (False, msg)
+
+    def joueurs_vivants(self):
+        return [joueur for joueur in self.players if joueur.is_alive]
+    
+    def joueurs_amoureux(self):
+        return [joueur for joueur in self.players if (joueur.role.is_alive and joueur.est_amoureux)]
 
 
 """
@@ -181,8 +228,6 @@ def creation_des_joueurs():
 # Exemple d'utilisation
 if __name__ == "__main__":
     # Création des joueurs
-    loup_garou = LoupGarou()
-    villageois = Villageois()
     joueur1 = Joueur("Joueur 1", LoupGarou())
     joueur2 = Joueur("Joueur 2", Villageois())
     joueur3 = Joueur("Joueur 3", Voyante())
@@ -191,6 +236,7 @@ if __name__ == "__main__":
     joueur6 = Joueur("Joueur 6", Sorciere())
     joueur7 = Joueur("Joueur 7", PetiteFille())
     joueur8 = Joueur("Joueur 8", Voleur())
+    joueur9 = Joueur("Joueur 9", LoupGarou())
 
     liste_joueurs = [
         joueur1,
@@ -200,10 +246,12 @@ if __name__ == "__main__":
         joueur5,
         joueur6,
         joueur7,
-        joueur8]
+        joueur8,
+        joueur9],
 
-    for joueur in liste_joueurs:
-        print(f"{joueur.name} - {joueur.role.name}")
+    #for joueur in liste_joueurs:
+        #print(f"{joueur.name} - {joueur.role.name} - Est vivant: {joueur.is_alive}")
+        #print(f"{joueur.name}")
 
     # Initialisation du jeu
     jeu = Partie(liste_joueurs)
@@ -212,6 +260,21 @@ if __name__ == "__main__":
     # Gestion des tours
     for _ in range(5):
         jeu.turn_manager.next_turn()
+
+
+    
+    
+    a,b = jeu.turn_manager.verifier_condition_de_victoire()
+    print(b)
+
+    print("Les joueurs vivants sont:")
+    liste_test = jeu.turn_manager.joueurs_vivants()
+    print([joueur.name for joueur in liste_test])
+    
+    print("Les joueurs vivants sont:")
+    joueur3.meurt()
+    liste_test = jeu.turn_manager.joueurs_vivants()
+    print([joueur.name for joueur in liste_test])
 
     # Fin du jeu
     jeu.end_game()
